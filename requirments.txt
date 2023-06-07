@@ -1,0 +1,5 @@
+requirments:
+
+pandas
+numpy
+plotly

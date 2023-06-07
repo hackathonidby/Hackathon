@@ -77,6 +77,7 @@ def preprocess_data(data):
             data[column] = le.fit_transform(data[column].astype(str))
     return data
 
+
 def drop_ids(data):
     data = data.drop(["h_booking_id", "h_customer_id"], axis=1)
     return data
@@ -150,14 +151,16 @@ if __name__ == "__main__":
     data["is_cancelled"] = data["cancellation_datetime"].apply(lambda x: 0 if pd.isna(x) else 1)
     data = data.drop(["cancellation_datetime"], axis=1)
     data = data.dropna()
-    # check if there is NoneType in the data
+    # check if there is NoneType in the data in data['booking_datetime']
+    print(data['booking_datetime'].apply(lambda x: type(x)).unique())
     print(data.isnull().sum())
-    data = Preprocess._preprocess_numericals(data)
     data = Preprocess.process_dates(data)
+    data = Preprocess._remove_if_string(data)
+    data = data.drop(["booking_datetime"], axis=1)
     X_train, X_test, y_train, y_test = split_data(data, "is_cancelled")
     # preprocess data
-    linear_regression_model = linear_regression(X_train, y_train)
-    ridge_regression_model = ridge_regression(X_train, y_train)
+    # linear_regression_model = linear_regression(X_train, y_train)
+    # ridge_regression_model = ridge_regression(X_train, y_train)
     random_forest = train_random_forest(X_train, y_train)
     knn = train_knn(X_train, y_train)
     svm = train_svm(X_train, y_train)
@@ -165,7 +168,8 @@ if __name__ == "__main__":
     
 
     # evaluate models and plot confusion matrix
-    models = [linear_regression_model, ridge_regression_model, random_forest, knn, svm, decision_tree]
+    # models = [linear_regression_model, ridge_regression_model, random_forest, knn, svm, decision_tree]
+    models = [random_forest, knn, svm, decision_tree]
     models_eval = []
     for model in models:
         print("Model:", model)
