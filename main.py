@@ -51,36 +51,12 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import f1_score
 from sklearn.preprocessing import LabelEncoder
 from tools.preprocess import Preprocess
+from sklearn.preprocessing import StandardScaler
 
 def load_data(file_path):
     data = pd.read_csv(file_path)
     return data
 
-def preprocess_dates(data):
-    data['booking_datetime'] = pd.to_datetime(data['booking_datetime'])
-    data['checkin_date'] = pd.to_datetime(data['checkin_date'])
-    data['checkout_date'] = pd.to_datetime(data['checkout_date'])
-    # remove hours:
-    data['checkin_date'] = data['checkin_date'].dt.date
-    data['checkout_date'] = data['checkout_date'].dt.date
-    data['booking_datetime'] = data['booking_datetime'].dt.date
-
-    # add column of how much time passed between booking and checkin and name it
-    data['booking_checkin_diff'] = data['checkin_date'] - data['booking_datetime']
-    # add column of how much time passed between checkin and checkout
-    data['checkin_checkout_diff'] = data['checkout_date'] - data['checkin_date']
-    return data
-def preprocess_data(data):
-    le = LabelEncoder()
-    for column in data.columns:
-        if data[column].dtype == type(object):
-            data[column] = le.fit_transform(data[column].astype(str))
-    return data
-
-
-def drop_ids(data):
-    data = data.drop(["h_booking_id", "h_customer_id"], axis=1)
-    return data
 
 def split_data(data, target_column, test_size=0.2, random_state=42):
     X = data.drop([target_column], axis=1)
@@ -94,11 +70,11 @@ def linear_regression(X_train, y_train):
     model.fit(X_train, y_train)
     return model
 
+
 def ridge_regression(X_train, y_train, alpha=0.001):
-    model = LogisticRegression(penalty='l2', C=1/alpha, intercept_scaling=1000)
+    model = LogisticRegression(penalty='l2', C=1 / alpha, intercept_scaling=1000)
     model.fit(X_train, y_train)
     return model
-
 
 
 def train_random_forest(X_train, y_train, n_estimators=100, random_state=42):
@@ -106,31 +82,37 @@ def train_random_forest(X_train, y_train, n_estimators=100, random_state=42):
     model.fit(X_train, y_train)
     return model
 
+
 def train_knn(X_train, y_train, n_neighbors=5):
     model = KNeighborsClassifier(n_neighbors=n_neighbors)
     model.fit(X_train, y_train)
     return model
+
 
 def train_svm(X_train, y_train, kernel='rbf'):
     model = SVC(kernel=kernel)
     model.fit(X_train, y_train)
     return model
 
+
 def train_decision_tree(X_train, y_train, max_depth=5):
     model = DecisionTreeClassifier(max_depth=max_depth)
     model.fit(X_train, y_train)
     return model
+
 
 def evaluate_model(model, X_test, y_test):
     predictions = model.predict(X_test)
     f1 = f1_score(y_test, predictions, average='macro')
     print("F1 Score:", f1)
 
+
 def preprocess_test_data(test_data, label_encoder):
     for column in test_data.columns:
         if test_data[column].dtype == type(object):
             test_data[column] = label_encoder.transform(test_data[column].astype(str))
     return test_data
+
 
 def generate_predictions(model, test_data, id_column):
     test_predictions = model.predict(test_data)
@@ -139,6 +121,7 @@ def generate_predictions(model, test_data, id_column):
         'cancellation': test_predictions
     })
     return submission
+
 
 def save_submission(submission, file_path):
     submission.to_csv(file_path, index=False)
@@ -151,25 +134,45 @@ if __name__ == "__main__":
     data["is_cancelled"] = data["cancellation_datetime"].apply(lambda x: 0 if pd.isna(x) else 1)
     data = data.drop(["cancellation_datetime"], axis=1)
     data = data.dropna()
-    # check if there is NoneType in the data in data['booking_datetime']
-    print(data['booking_datetime'].apply(lambda x: type(x)).unique())
+    # check if there is NoneType in the data
     print(data.isnull().sum())
-    data = Preprocess.process_dates(data)
-    data = Preprocess._remove_if_string(data)
-    data = data.drop(["booking_datetime"], axis=1)
+    data = Preprocess.preprocess_data(data)
+    # data = Preprocess._remove_if_string(data)
+
+
+    # Assuming you have a pandas DataFrame called 'data' and a feature matrix X
+
+
     X_train, X_test, y_train, y_test = split_data(data, "is_cancelled")
+
+    # Create an instance of the StandardScaler
+    scaler = StandardScaler()
+
+    # Fit the scaler to the data
+    #  clean all columns taht conrain a string
+    scaler.fit(X_train)
+
+    # Transform the data by applying the scaling
+    X_train = pd.DataFrame(scaler.transform(X_train), columns=X_train.columns)
+
+    scaler = StandardScaler()
+
+    # Fit the scaler to the data
+    scaler.fit(X_test)
+
+    # Transform the data by applying the scaling
+    X_test = pd.DataFrame(scaler.transform(X_test), columns=X_test.columns)
+
     # preprocess data
-    # linear_regression_model = linear_regression(X_train, y_train)
-    # ridge_regression_model = ridge_regression(X_train, y_train)
+    linear_regression_model = linear_regression(X_train, y_train)
+    ridge_regression_model = ridge_regression(X_train, y_train)
     random_forest = train_random_forest(X_train, y_train)
     knn = train_knn(X_train, y_train)
     svm = train_svm(X_train, y_train)
     decision_tree = train_decision_tree(X_train, y_train)
-    
 
     # evaluate models and plot confusion matrix
-    # models = [linear_regression_model, ridge_regression_model, random_forest, knn, svm, decision_tree]
-    models = [random_forest, knn, svm, decision_tree]
+    models = [linear_regression_model, ridge_regression_model, random_forest, knn, svm, decision_tree]
     models_eval = []
     for model in models:
         print("Model:", model)
@@ -182,7 +185,3 @@ if __name__ == "__main__":
         print("Recall score:", recall_score(y_test, model.predict(X_test)))
         print("F1 score:", f1_score(y_test, model.predict(X_test)))
         print("--------------------------------------------------")
-
-
-
-    
